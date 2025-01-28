@@ -1,14 +1,15 @@
 # Standart
-import asyncio
 import random
+import time
 
 # Third party
 from fastapi import FastAPI, Path
 from fastapi.responses import JSONResponse
 
-from exceptions import ModelValidateError
+
 # First party
 from schema import ConfigurationRequest
+from exceptions import ModelValidateError
 
 
 app = FastAPI(
@@ -24,7 +25,7 @@ responses = [
 
 
 @app.exception_handler(ModelValidateError)
-async def http_exception_handler(request, exc):
+def http_exception_handler(request, exc):
     return JSONResponse(
         status_code=400,
         content={"message": str(exc)}
@@ -70,10 +71,9 @@ async def http_exception_handler(request, exc):
         }
     }
 )
-async def configure_device_by_id(
+def configure_device_by_id(
     body: ConfigurationRequest,
     id: str = Path(..., title="ID устройства", regex="^[a-zA-Z0-9]{6,}$"),
 ):
-    await asyncio.sleep(60)
+    time.sleep(60)
     return random.choice(responses)
-

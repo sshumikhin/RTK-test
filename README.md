@@ -23,5 +23,8 @@ git clone --single-branch -b main https://github.com/sshumikhin/RTK-test.git
 ```
 docker compose up --build
 ```
+3) 
 
-3)
+### Из раздела "Будет плюсом"
+
+1) [Схема взаимодействия сервисов](https://miro.com/app/board/uXjVLnXYpk4=/)

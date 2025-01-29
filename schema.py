@@ -25,4 +25,3 @@ class ConfigurationRequest(BaseModel):
         if timeout < 0 or timeout > 14:
             raise ModelValidateError("Incorrect timeout value")
         return timeout
-

@@ -3,7 +3,7 @@ import random
 import time
 
 # Third party
-from fastapi import FastAPI, Path
+from fastapi import FastAPI, Path, Request
 from fastapi.responses import JSONResponse
 
 
@@ -18,14 +18,30 @@ app = FastAPI(
 
 
 responses = [
-        JSONResponse(status_code=200, content={"code": 200, "message": "success"}),
-        JSONResponse(status_code=404, content={"code": 404, "message": "The requested equipment is not found"}),
-        JSONResponse(status_code=500, content={"code": 500, "message": "Internal provisioning exception"})
+ JSONResponse(
+     status_code=200,
+     content={
+         "code": 200, "message": "success"
+     }
+ ),
+ JSONResponse(
+     status_code=404,
+     content={
+         "code": 404, "message": "The requested equipment is not found"
+     }
+ ),
+ JSONResponse(
+     status_code=500,
+     content={
+         "code": 500,
+         "message": "Internal provisioning exception"
+     }
+ )
 ]
 
 
 @app.exception_handler(ModelValidateError)
-def http_exception_handler(request, exc):
+def http_exception_handler(_: Request, exc):
     return JSONResponse(
         status_code=400,
         content={"message": str(exc)}
@@ -72,9 +88,8 @@ def http_exception_handler(request, exc):
     }
 )
 def configure_device_by_id(
-    body: ConfigurationRequest,
+    _: ConfigurationRequest,
     id: str = Path(..., title="ID устройства", regex="^[a-zA-Z0-9]{6,}$"),
 ):
-    # time.sleep(60)
-    # return random.choice(responses)
-    return responses[0]
+    time.sleep(60)
+    return random.choice(responses)

@@ -1,5 +1,4 @@
 # Standart
-import logging
 from uuid import UUID
 from contextlib import asynccontextmanager
 
@@ -19,7 +18,8 @@ from postgres.models import (
 
 from redis_client import (
     read_from_stream,
-    redis_client, send_to_stream
+    redis_client,
+    send_to_stream
 )
 
 # First party

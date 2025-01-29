@@ -18,9 +18,9 @@ app = FastAPI(
 
 
 responses = [
-        JSONResponse(status_code=200, content={"message": "success"}),
-        JSONResponse(status_code=404, content={"message": "The requested equipment is not found"}),
-        JSONResponse(status_code=500, content={"message": "Internal provisioning exception"})
+        JSONResponse(status_code=200, content={"code": 200, "message": "success"}),
+        JSONResponse(status_code=404, content={"code": 404, "message": "The requested equipment is not found"}),
+        JSONResponse(status_code=500, content={"code": 500, "message": "Internal provisioning exception"})
 ]
 
 

@@ -10,11 +10,15 @@ from fastapi.responses import JSONResponse
 # First party
 from schema import ConfigurationRequest
 from exceptions import ModelValidateError
-
+import logging
 
 app = FastAPI(
     title="service-a",
 )
+
+
+logger = logging.getLogger("Service A")
+logger.setLevel(logging.INFO)
 
 
 responses = [
@@ -91,5 +95,6 @@ def configure_device_by_id(
     _: ConfigurationRequest,
     id: str = Path(..., title="ID устройства", regex="^[a-zA-Z0-9]{6,}$"),
 ):
+    logger.info(f"Configure device {id}")
     time.sleep(60)
     return random.choice(responses)

@@ -18,9 +18,8 @@ from postgres.models import (
 )
 
 from redis_client import (
-    send_redis_pubsub,
-    subscribe_redis_pubsub,
-    redis_client
+    read_from_stream,
+    redis_client, send_to_stream
 )
 
 # First party
@@ -36,7 +35,11 @@ from postgres.session import async_session
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # TODO: При запуске также проверяется, все ли конфигурации были отправлены
-    await subscribe_redis_pubsub(channel="completed_tasks")
+    await read_from_stream(
+        stream_name="completed_tasks",
+        group_name="completed_tasks_handler",
+        consumer_name="consumer"
+    )
     yield
     await redis_client.aclose()
 
@@ -135,16 +138,17 @@ async def configure_device_by_id(
 
         task_created = True
 
-        await send_redis_pubsub(
+        await send_to_stream(
             msg={
                 "taskId": str(task.id),
                 "device_id": id,
                 "username": body.parameters[0].username,
                 "password": body.parameters[0].password,
                 "vlan": body.parameters[0].vlan,
-                "interfaces": body.parameters[0].interfaces
+                "interfaces": body.parameters[0].interfaces,
+                "timeout_in_seconds": body.timeoutInSeconds
             },
-            channel="processing_tasks"
+            stream_name="processing_tasks"
         )
 
         task.status = "sent"

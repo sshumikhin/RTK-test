@@ -1,21 +1,44 @@
 # Standart
-import asyncio
-import json
-import random
+import logging
+from uuid import UUID
+from contextlib import asynccontextmanager
 
-import aio_pika
-from aio_pika import ExchangeType
 # Third party
-from fastapi import FastAPI, Path, Depends
+from fastapi import (FastAPI,
+                     Path,
+                     Depends,
+                     Request
+)
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from exceptions import ModelValidateError
-from postgres.session import async_session
+from postgres.models import (
+    Task,
+    Configuration
+)
+
+from redis_client import (
+    send_redis_pubsub,
+    subscribe_redis_pubsub,
+    redis_client
+)
 
 # First party
 from schema import ConfigurationRequest
-from postgres.service import create_equipment_configuration, get_task_by_id
+from postgres.service import (
+    create_configuration,
+    get_entity_by_params, create_task
+)
+from exceptions import ModelValidateError
+from postgres.session import async_session
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # TODO: При запуске также проверяется, все ли конфигурации были отправлены
+    await subscribe_redis_pubsub(channel="completed_tasks")
+    yield
+    await redis_client.aclose()
 
 app = FastAPI(
     title="service-b",
@@ -31,15 +54,28 @@ app = FastAPI(
             },
             "description": "Внутренняя ошибка"
         }
-    }
+    },
+    lifespan=lifespan
 )
 
 
 @app.exception_handler(ModelValidateError)
-async def http_exception_handler(request, exc):
+async def http_exception_handler(_: Request, exc):
     return JSONResponse(
         status_code=400,
-        content={"message": str(exc)}
+        content={
+            "code": 400,
+            "message": str(exc)}
+    )
+
+
+@app.exception_handler(Exception)
+async def http_exception_handler(_: Request, exc):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "code": 500,
+            "message": "Internal provisioning exception"}
     )
 
 
@@ -76,9 +112,11 @@ async def configure_device_by_id(
     id: str = Path(..., title="ID устройства", regex="^[a-zA-Z0-9]{6,}$"),
     session: AsyncSession = Depends(async_session)
 ):
-    # TODO: сохранять входные данные
+    configured = False
+    task_created = False
+
     try:
-        task = await create_equipment_configuration(
+        configuration = await create_configuration(
             session=session,
             device_id=id,
             timeout_in_seconds=body.timeoutInSeconds,
@@ -88,30 +126,50 @@ async def configure_device_by_id(
             interfaces=body.parameters[0].interfaces
         )
 
-        # TODO: Создавать задачу
-        connection = await aio_pika.connect_robust("amqp://guest:guest@localhost/")
-        channel = await connection.channel()
+        configured = True
 
-        exchange = await channel.declare_exchange(
-            name="tasks_exchange",
-            type=aio_pika.ExchangeType.DIRECT
+        task = await create_task(
+            session=session,
+            configuration_id=configuration.id
         )
 
-        queue = await channel.declare_queue("tasks_queue")
+        task_created = True
 
-        message_body = json.dumps(body.model_dump())
-        message = aio_pika.Message(body=message_body.encode(), content_type='application/json')
+        await send_redis_pubsub(
+            msg={
+                "taskId": str(task.id),
+                "device_id": id,
+                "username": body.parameters[0].username,
+                "password": body.parameters[0].password,
+                "vlan": body.parameters[0].vlan,
+                "interfaces": body.parameters[0].interfaces
+            },
+            channel="processing_tasks"
+        )
 
-        await exchange.publish(message, routing_key="send_task")
+        task.status = "sent"
 
         await session.commit()
 
-        return JSONResponse(status_code=200, content={"taskId": str(task.task_id)})
+        return JSONResponse(
+            status_code=200,
+            content={
+                "code": 200,
+                "taskId": str(task.id)}
+        )
 
     except Exception as _:
-        #TODO: логгирование ошибок
-        await session.rollback()
-        return JSONResponse(status_code=500, content={"message": "Internal provisioning exception"})
+        # TODO: логгирование ошибок
+        if configured and task_created:
+            await session.commit()
+        # TODO: рассмотреть случай, если сама таска не была создана
+        else:
+            await session.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": 500,
+                "message": "Internal provisioning exception"})
 
 
 @app.get(
@@ -157,35 +215,57 @@ async def configure_device_by_id(
              }
          })
 async def get_task_status(
-        id: str = Path(..., title="ID устройства", regex="^[a-zA-Z0-9]{6,}$"),
-        task: str = Path(..., title="ID задачи"),
+        task: UUID,
+        id: str = Path(
+            default = ...,
+            title="ID устройства",
+            regex="^[a-zA-Z0-9]{6,}$"
+        ),
         session: AsyncSession = Depends(async_session)
 ):
-    task = await get_task_by_id(
+
+    configuration_ids = await get_entity_by_params(
+        model=Configuration,
         session=session,
-        task_id=task
+        conditions=[Configuration.device_id == id],
+        many=True
+    )
+
+    if not bool(configuration_ids):
+        return JSONResponse(
+            status_code=404,
+            content={
+                "code": 404,
+                "message": "The requested equipment is not found"}
+        )
+
+    task = await get_entity_by_params(
+        model=Task,
+        session=session,
+        conditions=[Task.configuration_id.in_(configuration_ids),
+                    Task.id == task],
     )
 
     if task is None:
-        pass
+        return JSONResponse(
+            status_code=404,
+            content={
+                "code": 404,
+                "message": "The requested task is not found"}
+    )
 
-#     try:
-#         # Проверка наличия устройства
-#         if id not in devices:
-#             raise HTTPException(status_code=404, detail="The requested equipment is not found")
-#
-#         # Проверка наличия задачи
-#         if task not in tasks_status:
-#             raise HTTPException(status_code=404, detail="The requested task is not found")
-#
-#         # Возвращение статуса задачи
-#         if tasks_status[task] == "completed":
-#             return {"code": 200, "message": "Completed"}
-#         else:
-#             return {"code": 204, "message": "Task is still running"}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail="Internal provisioning exception")
+    if task.status == "completed":
+        return JSONResponse(
+            status_code=200,
+            content={
+                "code": 200,
+                "message": "Completed"}
+        )
+    else:
+        return JSONResponse(
+            status_code=204,
+            content={
+                "code": 204,
+                "message": "Task is still running"})
 
 
-
-# TODO: закрывать redis при закрытии приложения

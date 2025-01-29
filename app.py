@@ -75,5 +75,6 @@ def configure_device_by_id(
     body: ConfigurationRequest,
     id: str = Path(..., title="ID устройства", regex="^[a-zA-Z0-9]{6,}$"),
 ):
-    time.sleep(60)
-    return random.choice(responses)
+    # time.sleep(60)
+    # return random.choice(responses)
+    return responses[0]

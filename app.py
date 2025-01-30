@@ -109,6 +109,6 @@ def configure_device_by_id(
     return random.choice(responses)
 
 
-@app.get("/health", include_in_schema=False)
+@app.get(path="/health", include_in_schema=False)
 def health_check():
     return {"status": "healthy"}

@@ -145,7 +145,7 @@ class TaskManager:
                     result = await self.send_data_to_service_a(
                         task=task
                     )
-
+                    logging.info(result)
                     if result["message"] == "success":
                         await self.send_completed_task_to_broker(task["taskId"])
                     await self.confirm_receipt(message_id=message_id)

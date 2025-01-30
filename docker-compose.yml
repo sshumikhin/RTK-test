@@ -5,8 +5,8 @@ services:
     build: services-images/nginx/.
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "7777:7777"
+      - "8000:8000"
     volumes:
       - ./services-images/nginx/nginx.conf:/etc/nginx/nginx.conf
 
@@ -20,7 +20,7 @@ services:
       - .env
     healthcheck:
       test: curl --fail http://service-a:7777/health || exit 1
-      interval: 2s
+      interval: 30s
       timeout: 5s
       retries: 3
       start_period: 5s
@@ -41,7 +41,7 @@ services:
       - redis
     healthcheck:
       test: curl --fail http://service-b:8000/health || exit 1
-      interval: 2s
+      interval: 30s
       timeout: 5s
       retries: 3
       start_period: 5s
@@ -76,12 +76,6 @@ services:
       - POSTGRES_DB=${DB_NAME}
     expose:
       - 5432
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready", "-d", "db_prod"]
-      interval: 30s
-      timeout: 60s
-      retries: 5
-      start_period: 80s
 
 
   redis:

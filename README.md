@@ -18,13 +18,36 @@
 git clone --single-branch -b main https://github.com/sshumikhin/RTK-test.git
 ```
 
+2) Создайте файл .env и заполните его по образцу .env.example
+```
+REDIS_HOST=redis
+REDIS_PORT=6379
+SERVICE_A=service-a:7777
+DB_USER=postgres
+DB_PASS=Password1!
+DB_NAME=service_b
+DB_HOST=postgresql-db
+DB_PORT=5432
+```
 
-2) Соберите и запустите docker-compose
+3) Соберите и запустите docker-compose
 ```
 docker compose up --build
 ```
-3) 
+4) Выполните миграцию в сервисе B
+```
+docker exec -it service-b bash
+alembic upgrade heads
+exit
+```
+5) Сервис B доступен по адресу https://localhost:8000. Его документацию можно просмотреть на https://localhost:8000/docs
 
+6) Сервис А доступен по адресу https://localhost:7777. Его документация доступна по адресу https://localhost:7777/docs
+
+
+### Примечания
+- Во время выполнения задачи многие моменты мне были не сразу понятны. 
+Например, почему при 204 коде ответа в одном из API должен быть какой-то текст. Поэтому я допускаю, что мог ошибиться где-то и не понять, что от меня требовалось. Если будет представляться возможность уточнить детали и дать возможность исправить всё, то свяжитесь со [мной](https://t.me/username23465).
 ### Из раздела "Будет плюсом"
 
 1) [Схема взаимодействия сервисов](https://miro.com/app/board/uXjVLnXYpk4=/)

@@ -63,6 +63,8 @@ async def lifespan(app: FastAPI):
     )
     yield
     await redis_client.aclose()
+    logger.info("Остановка сервиса B")
+
 
 app = FastAPI(
     title="service-b",

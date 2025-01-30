@@ -1,6 +1,7 @@
 # Standart
 import random
 import time
+from contextlib import asynccontextmanager
 
 # Third party
 from fastapi import FastAPI, Path, Request
@@ -12,8 +13,16 @@ from schema import ConfigurationRequest
 from exceptions import ModelValidateError
 import logging
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Запуск сервиса А")
+    yield
+    logger.info("Остановка сервиса А")
+
+
 app = FastAPI(
     title="service-a",
+    lifespan=lifespan
 )
 
 
@@ -95,6 +104,11 @@ def configure_device_by_id(
     _: ConfigurationRequest,
     id: str = Path(..., title="ID устройства", regex="^[a-zA-Z0-9]{6,}$"),
 ):
-    logger.info(f"Configure device {id}")
+    logger.info(f"Конфигурация устройства {id}")
     time.sleep(60)
     return random.choice(responses)
+
+
+@app.get("/health", include_in_schema=False)
+def health_check():
+    return {"status": "healthy"}

@@ -32,7 +32,7 @@ from exceptions import ModelValidateError
 from postgres.session import async_session
 import logging
 
-logger = logging.getLogger("uvicorn.info")
+logger = logging.getLogger("uvicorn")
 
 
 CONSUMER_STREAM_NAME = "completed_tasks"

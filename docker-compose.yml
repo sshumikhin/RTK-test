@@ -13,7 +13,7 @@ services:
   service-a:
     build: services-images/service-a/.
     container_name: service-a
-    command: uvicorn app:app --host 0.0.0.0 --port 7777
+    command: uvicorn app:app --host 0.0.0.0 --port 7777 --log-level info
     expose:
       - 7777
     env_file:
@@ -29,7 +29,7 @@ services:
   service-b:
     build: services-images/service-b/.
     container_name: service-b
-    command: uvicorn app:app --host 0.0.0.0 --port 8000
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --log-level info
     volumes:
       - migrations:/code/alembic/migrations/versions
     expose:

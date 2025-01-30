@@ -31,9 +31,8 @@ from postgres.service import (
 from exceptions import ModelValidateError
 from postgres.session import async_session
 import logging
+from fastapi.logger import logger
 
-
-logger = logging.getLogger("Service B")
 logger.setLevel(logging.INFO)
 
 

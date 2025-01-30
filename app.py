@@ -19,7 +19,7 @@ from postgres.models import (
 from redis_client import (
     read_from_stream,
     redis_client,
-    send_to_stream
+    send_to_stream, create_consumer_group, read_old_messages
 )
 
 # First party
@@ -30,15 +30,36 @@ from postgres.service import (
 )
 from exceptions import ModelValidateError
 from postgres.session import async_session
+import logging
+
+
+logger = logging.getLogger("Service B")
+logger.setLevel(logging.INFO)
+
+
+CONSUMER_STREAM_NAME = "completed_tasks"
+CONSUMER_GROUP_NAME = "completed_tasks_handler"
+CONSUMER_NAME = "Service B"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # TODO: При запуске также проверяется, все ли конфигурации были отправлены
+    logger.info("Запуск сервиса B")
+
+    await create_consumer_group(
+        stream=CONSUMER_STREAM_NAME,
+        group=CONSUMER_GROUP_NAME,
+    )
+
+    await read_old_messages(
+        group=CONSUMER_GROUP_NAME,
+        consumername=CONSUMER_NAME,
+        stream=CONSUMER_STREAM_NAME
+    )
     await read_from_stream(
-        stream_name="completed_tasks",
-        group_name="completed_tasks_handler",
-        consumer_name="consumer"
+        groupname=CONSUMER_GROUP_NAME,
+        consumername=CONSUMER_NAME,
+        stream=CONSUMER_STREAM_NAME
     )
     yield
     await redis_client.aclose()
@@ -115,9 +136,6 @@ async def configure_device_by_id(
     id: str = Path(..., title="ID устройства", regex="^[a-zA-Z0-9]{6,}$"),
     session: AsyncSession = Depends(async_session)
 ):
-    configured = False
-    task_created = False
-
     try:
         configuration = await create_configuration(
             session=session,
@@ -129,14 +147,11 @@ async def configure_device_by_id(
             interfaces=body.parameters[0].interfaces
         )
 
-        configured = True
 
         task = await create_task(
             session=session,
             configuration_id=configuration.id
         )
-
-        task_created = True
 
         await send_to_stream(
             msg={
@@ -155,6 +170,8 @@ async def configure_device_by_id(
 
         await session.commit()
 
+        logger.info(f"Задача {task.id} отправлена в Redis stream")
+
         return JSONResponse(
             status_code=200,
             content={
@@ -162,13 +179,9 @@ async def configure_device_by_id(
                 "taskId": str(task.id)}
         )
 
-    except Exception as _:
-        # TODO: логгирование ошибок
-        if configured and task_created:
-            await session.commit()
-        # TODO: рассмотреть случай, если сама таска не была создана
-        else:
-            await session.rollback()
+    except Exception as e:
+        logger.critical(msg=str(e), exc_info=True)
+        await session.rollback()
         return JSONResponse(
             status_code=500,
             content={
@@ -229,7 +242,7 @@ async def get_task_status(
 ):
 
     configuration_ids = await get_entity_by_params(
-        model=Configuration,
+        model=Configuration.id,
         session=session,
         conditions=[Configuration.device_id == id],
         many=True
@@ -265,11 +278,16 @@ async def get_task_status(
                 "code": 200,
                 "message": "Completed"}
         )
-    else:
+    elif task.status == "sent":
         return JSONResponse(
             status_code=204,
             content={
                 "code": 204,
                 "message": "Task is still running"})
-
-
+    else:
+        logger.critical(msg=f"Unknown task status. task_id ={task.id}")
+        return JSONResponse(
+            status_code=204,
+            content={
+                "code": 204,
+                "message": "Task is still running"})

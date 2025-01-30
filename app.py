@@ -14,7 +14,7 @@ from exceptions import ModelValidateError
 import logging
 
 
-logger = logging.getLogger("uvicorn.access")
+logger = logging.getLogger("uvicorn.info")
 
 
 @asynccontextmanager

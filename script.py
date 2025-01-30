@@ -1,6 +1,6 @@
 import asyncio
 import os
-from typing import Dict
+import sys
 import redis.asyncio as aioredis
 from redis.exceptions import ResponseError
 import aiohttp
@@ -16,9 +16,18 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Script")
 
 
+HOST = os.getenv("REDIS_HOST", "localhost")
+PORT = os.getenv("REDIS_PORT", 6379)
+CONNECTION_URL = f"redis://{HOST}:{PORT}/0"
+CONSUMER_STREAM_NAME = "processing_tasks"
+CONSUMER_GROUP_NAME = "proccessing_tasks_handler"
+CONSUMER_NAME = "Script"
+RECEIVER_STREAM_NAME = "completed_tasks"
+SERVICE_A = os.getenv("SERVICE_A", "localhost:8000")
+
+
 class ServiceA:
 
-    HOST = os.getenv("SERVICE_A", "localhost:8000")
     BASE_URL = f'http://{HOST}/api/v1/equipment/cpe/'
     headers = {'Content-Type': 'application/json'}
 
@@ -45,50 +54,53 @@ class ServiceA:
                 ) as response:
                     return await response.json()
             except aiohttp.ClientError as e:
-                print(f"Ошибка при вызове сервиса A: {e}")
+                logger.error(f"Сервис A не доступен: {e}")
                 return None
 
 
 class TaskManager:
 
-    PROCESSING_TASKS_STREAM_NAME = "processing_tasks"
-    COMPLETED_TASKS_STREAM_NAME = "completed_tasks"
-
     def __init__(self):
-        self.redis = aioredis.from_url(
-            url = "redis://localhost",
-            # encoding="utf-8",
-            # decode_responses=True
-        )
+        try:
+            self.redis = aioredis.from_url(
+                url=CONNECTION_URL,
+                encoding="utf-8",
+                decode_responses=True
+            )
+        except Exception as e:
+            logger.error(f"Не удалось подключиться к Redis: {str(e)}")
+            sys.exit(1)
 
     async def connect_to_consumers_group(self):
         try:
-            await self.redis.xgroup_create(
-                name=self.PROCESSING_TASKS_STREAM_NAME,
-                groupname="processing_group",
-                mkstream=True
-            )
-        except ResponseError:
-            pass
+            await self.redis.xgroup_create(CONSUMER_STREAM_NAME, CONSUMER_GROUP_NAME, mkstream=True)
+        except ResponseError as error:
+            if "BUSYGROUP" in str(error):
+                logger.info(f"Группа {CONSUMER_GROUP_NAME} уже существует")
+            else:
+                logger.error(f"Ошибка при создании группы : {error}")
 
-    async def check_tasks_from_service_b(self) -> Dict[str, dict]:
+    async def check_tasks_from_service_b(self, stream_viewing_type: str = '0'):
         messages = await self.redis.xreadgroup(
-            groupname="processing_group",
-            consumername="consumer",
-            streams={self.PROCESSING_TASKS_STREAM_NAME: '>'},
-            count=1,
+            groupname=CONSUMER_GROUP_NAME,
+            consumername=CONSUMER_NAME,
+            streams={CONSUMER_STREAM_NAME: stream_viewing_type},
             block=5000
         )
-        tasks = {}
-        if messages:
-            for item in messages:
-                stream = item[0].decode("utf-8")
-                messages_list = item[1]
 
-                for message_id, message_data in messages_list:
-                    task = message_data[b"message"].decode("utf-8")
-                    task_dict = json.loads(task)
-                    tasks[message_id] = task_dict
+        tasks = {}
+
+        if bool(messages):
+            for msg_id, msg_body in messages[0][1]:
+
+                try:
+                    task = json.loads(msg_body["message"])
+                except KeyError:
+                    logger.error(f"Отсутствует поле message в сообщении {msg_body}")
+                    return
+
+                tasks[msg_id] = task
+                logger.info(f"Получено задание {task["taskId"]} из канала {CONSUMER_STREAM_NAME}")
 
         return tasks
 
@@ -100,17 +112,36 @@ class TaskManager:
         return result
 
     async def send_completed_task_to_broker(self, task_id):
-        await self.redis.xadd(self.COMPLETED_TASKS_STREAM_NAME, {"taskId": task_id})
+        await self.redis.xadd(RECEIVER_STREAM_NAME, {"taskId": task_id})
 
     async def confirm_receipt(self, message_id):
-        await self.redis.xack(self.PROCESSING_TASKS_STREAM_NAME, "processing_group", message_id)
+        await self.redis.xack(CONSUMER_STREAM_NAME, "processing_group", message_id)
 
     async def work(self):
         await self.connect_to_consumers_group()
+        old_tasks = await self.check_tasks_from_service_b()
+
+        if old_tasks:
+            logger.info(f"Получено {len(old_tasks)} старых заданий из канала {CONSUMER_STREAM_NAME}")
+            for message_id, task in old_tasks.items():
+                logger.info(f"Обработка задания {task['taskId']}")
+                result = await self.send_data_to_service_a(
+                    task=task
+                )
+
+                if result["message"] == "success":
+                    await self.send_completed_task_to_broker(task["taskId"])
+                await self.confirm_receipt(message_id=message_id)
+                logger.info(f"Задание {task['taskId']} обработано")
+        else:
+            logger.info(f"Нет старых заданий в канале {CONSUMER_STREAM_NAME}")
+
         while True:
-            new_tasks = await self.check_tasks_from_service_b()
+            new_tasks = await self.check_tasks_from_service_b(stream_viewing_type='>')
             if new_tasks:
+                logger.info(f"Получено {len(old_tasks)} заданий из канала {CONSUMER_STREAM_NAME}")
                 for message_id, task in new_tasks.items():
+                    logger.info(f"Обработка задания {task['taskId']}")
                     result = await self.send_data_to_service_a(
                         task=task
                     )
@@ -118,13 +149,19 @@ class TaskManager:
                     if result["message"] == "success":
                         await self.send_completed_task_to_broker(task["taskId"])
                     await self.confirm_receipt(message_id=message_id)
+                    logger.info(f"Задание {task['taskId']} обработано")
+            else:
+                logger.info(f"Нет новых заданий в канале {CONSUMER_STREAM_NAME}")
 
-            await asyncio.sleep(1)
+async def main():
 
+    task_manager = TaskManager()
+    try:
+        await task_manager.work()
+    except Exception as e:
+        await task_manager.redis.aclose()
+        logging.critical(f"Произошла ошибка: {e}")
 
-    # def __del__(self):
-    #     asyncio.run(self.redis.aclose())
-    #
 
 if __name__ == "__main__":
-    asyncio.run(TaskManager().work())
+    asyncio.run(main())

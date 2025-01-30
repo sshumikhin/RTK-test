@@ -44,7 +44,7 @@ async def create_consumer_group(stream: str, group: str):
 
 
 async def read_old_messages(stream: str, group: str, consumername: str):
-
+    logger.info("Проверка старых сообщений")
     messages = await redis_client.xreadgroup(
             groupname=group,
             consumername=consumername,
@@ -54,7 +54,7 @@ async def read_old_messages(stream: str, group: str, consumername: str):
     if bool(messages):
         for msg_id, msg_body in messages[0][1]:
             try:
-                task_id = json.loads(msg_body)["taskId"]
+                task_id = msg_body["taskId"]
             except KeyError:
                 logger.error(f"Отсутствует поле taskId в сообщении {msg_body}")
                 return
@@ -72,6 +72,7 @@ async def read_old_messages(stream: str, group: str, consumername: str):
 
 @repeat_every(seconds=5)
 async def read_from_stream(groupname: str, consumername: str, stream: str):
+    logger.info("Проверка новых сообщений")
     messages = await redis_client.xreadgroup(
             groupname=groupname,
             consumername=consumername,
@@ -81,7 +82,7 @@ async def read_from_stream(groupname: str, consumername: str, stream: str):
     if bool(messages):
         for msg_id, msg_body in messages[0][1]:
             try:
-                task_id = json.loads(msg_body)["taskId"]
+                task_id = msg_body["taskId"]
             except KeyError:
                 logger.error(f"Отсутствует поле taskId в сообщении {msg_body}")
                 return

@@ -28,7 +28,7 @@ SERVICE_A = os.getenv("SERVICE_A", "localhost:8000")
 
 class ServiceA:
 
-    BASE_URL = f'http://{HOST}/api/v1/equipment/cpe/'
+    BASE_URL = f'http://{SERVICE_A}/api/v1/equipment/cpe/'
     headers = {'Content-Type': 'application/json'}
 
     async def configure_equipment_by_task_from_broker(self, task: dict):

@@ -124,7 +124,7 @@ class TaskManager:
         if old_tasks:
             logger.info(f"Получено {len(old_tasks)} старых заданий из канала {CONSUMER_STREAM_NAME}")
             for message_id, task in old_tasks.items():
-                logger.info(f"Обработка задания {task['taskId']}")
+                logger.info(f"Отправка задания {task['taskId']} в сервис А")
                 result = await self.send_data_to_service_a(
                     task=task
                 )
@@ -141,7 +141,7 @@ class TaskManager:
             if new_tasks:
                 logger.info(f"Получено {len(old_tasks)} заданий из канала {CONSUMER_STREAM_NAME}")
                 for message_id, task in new_tasks.items():
-                    logger.info(f"Обработка задания {task['taskId']}")
+                    logger.info(f"Отправка задания {task['taskId']} в сервис А")
                     result = await self.send_data_to_service_a(
                         task=task
                     )
@@ -152,6 +152,7 @@ class TaskManager:
                     logger.info(f"Задание {task['taskId']} обработано")
             else:
                 logger.info(f"Нет новых заданий в канале {CONSUMER_STREAM_NAME}")
+
 
 async def main():
 

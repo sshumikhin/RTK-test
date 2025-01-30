@@ -293,3 +293,10 @@ async def get_task_status(
             content={
                 "code": 204,
                 "message": "Task is still running"})
+
+
+
+
+@app.get("/health", include_in_schema=False)
+def health_check():
+    return {"status": "healthy"}

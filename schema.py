@@ -22,7 +22,7 @@ class ConfigurationRequest(BaseModel):
     @field_validator("timeoutInSeconds", mode='before')
     @classmethod
     def validate_timeout(cls, timeout: int):
-        if timeout < 0 or timeout > 14:
+        if timeout < 0:
             raise ModelValidateError("Incorrect timeout value")
         return timeout
 

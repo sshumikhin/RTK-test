@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 RUN pip install --upgrade pip
 
-RUN git clone --single-branch -b service-a https://github.com/sshumikhin/RTK-test.git
+RUN git clone --single-branch -b service-b https://github.com/sshumikhin/RTK-test.git
 
 WORKDIR /code/RTK-test
 

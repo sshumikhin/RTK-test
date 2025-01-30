@@ -297,6 +297,6 @@ async def get_task_status(
 
 
 
-@app.get("/health", include_in_schema=False)
+@app.get(path="/health", include_in_schema=False)
 def health_check():
     return {"status": "healthy"}

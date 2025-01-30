@@ -16,7 +16,14 @@ services:
     command: uvicorn app:app --host 0.0.0.0 --port 7777
     expose:
       - 7777
-    restart: always
+    env_file:
+      - .env
+    healthcheck:
+      test: curl --fail http://localhost:7777/health || exit 1
+      interval: 2s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
 
   service-b:
@@ -29,7 +36,12 @@ services:
       - 8000
     env_file:
       - .env
-    restart: always
+    healthcheck:
+      test: curl --fail http://localhost:8000/health || exit 1
+      interval: 2s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
 
   script:
@@ -58,7 +70,12 @@ services:
       - POSTGRES_DB=${DB_NAME}
     expose:
       - 5432
-    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "db_prod"]
+      interval: 30s
+      timeout: 60s
+      retries: 5
+      start_period: 80s
 
 
   redis:
@@ -69,7 +86,11 @@ services:
       - REDIS_PORT=6379
     expose:
       - 6379
-    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 1s
+      timeout: 3s
+      retries: 5
 
 
 

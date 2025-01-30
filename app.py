@@ -280,17 +280,17 @@ async def get_task_status(
         )
     elif task.status == "sent":
         return JSONResponse(
-            status_code=204,
+            status_code=200,
             content={
                 "code": 204,
                 "message": "Task is still running"})
     else:
         logger.critical(msg=f"Unknown task status. task_id ={task.id}")
         return JSONResponse(
-            status_code=204,
+            status_code=500,
             content={
-                "code": 204,
-                "message": "Task is still running"})
+                "code": 500,
+                "message": "Internal provisioning exception"})
 
 
 

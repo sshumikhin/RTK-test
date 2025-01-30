@@ -158,11 +158,14 @@ async def main():
 
     task_manager = TaskManager()
     try:
+        logger.info("Запуск скрипта")
         await task_manager.work()
     except Exception as e:
         await task_manager.redis.aclose()
         logging.critical(f"Произошла ошибка: {e}")
-
+    finally:
+        await task_manager.redis.aclose()
+        logger.info("Завершение работы скрипта")
 
 if __name__ == "__main__":
     asyncio.run(main())

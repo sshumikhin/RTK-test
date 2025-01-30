@@ -13,6 +13,10 @@ from schema import ConfigurationRequest
 from exceptions import ModelValidateError
 import logging
 
+
+logger = logging.getLogger("uvicorn.access")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Запуск сервиса А")
@@ -26,8 +30,6 @@ app = FastAPI(
 )
 
 
-logger = logging.getLogger("Service A")
-logger.setLevel(logging.INFO)
 
 
 responses = [

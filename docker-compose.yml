@@ -36,6 +36,9 @@ services:
       - 8000
     env_file:
       - .env
+    depends_on:
+      - postgres
+      - redis
     healthcheck:
       test: curl --fail http://localhost:8000/health || exit 1
       interval: 2s
@@ -52,6 +55,10 @@ services:
       - migrations:/code/alembic/migrations/versions
     expose:
       - 8000
+    depends_on:
+      - service-b
+      - service-a
+      - redis
     env_file:
       - .env
     restart: always

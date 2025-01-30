@@ -17,8 +17,7 @@ PORT = getenv("REDIS_PORT")
 
 CONNECTION_URL = f"redis://{HOST}:{PORT}/0"
 
-logger = logging.getLogger("Service B | Redis Client")
-logger.setLevel(logging.INFO)
+logger = logging.getLogger("uvicorn.access")
 
 
 redis_client = aioredis.from_url(

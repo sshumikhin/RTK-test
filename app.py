@@ -31,9 +31,8 @@ from postgres.service import (
 from exceptions import ModelValidateError
 from postgres.session import async_session
 import logging
-from fastapi.logger import logger
 
-logger.setLevel(logging.INFO)
+logger = logging.getLogger("uvicorn.access")
 
 
 CONSUMER_STREAM_NAME = "completed_tasks"

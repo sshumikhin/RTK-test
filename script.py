@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("Script")
 logger.setLevel(logging.INFO)
 
 console_handler = logging.StreamHandler()
@@ -151,7 +151,6 @@ class TaskManager:
         except Exception as e:
             logger.error("Не удалось получить сообщения из сервиса B")
 
-
     async def send_data_to_service_a(self, task: dict):
         """
             Метод для отправки задания в сервис А
@@ -162,14 +161,14 @@ class TaskManager:
 
         return result
 
-    async def send_completed_task_to_broker(self, task_id):
+    async def send_completed_task_to_broker(self, task_id, status: str):
         """
             Метод для отправки задания в канал для получателя(Сервис B)
 
             Имплементирует XADD
         """
         try:
-            await self.redis.xadd(RECEIVER_STREAM_NAME, {"taskId": task_id})
+            await self.redis.xadd(RECEIVER_STREAM_NAME, {"taskId": task_id, "status": status})
         except Exception as e:
             logger.error(f"Не удалось отправить задание в канал {RECEIVER_STREAM_NAME}: {e}")
             logger.error(f"task_id: {task_id}")
@@ -214,16 +213,15 @@ class TaskManager:
                     result = await self.send_data_to_service_a(
                             task=task
                     )
-                    # TODO: для каждого кода свой флаг в completed_task
                     if result["code"] == 200:
                         await self.confirm_receipt(message_id=message_id)
-                        await self.send_completed_task_to_broker(task["taskId"])
-                        logger.info(f"Задание {task['taskId']} обработано")
+                        await self.send_completed_task_to_broker(task["taskId"], status="completed")
+                        logger.info(f"Задание {task['taskId']} обработано сервисом А")
 
                     elif result["code"] == 404:
-                        await self.send_completed_task_to_broker(task["taskId"])
+                        await self.send_completed_task_to_broker(task["taskId"], status="not_found")
                         await self.confirm_receipt(message_id=message_id)
-                        logger.info(f"Задание {task['taskId']} не было найдено")
+                        logger.info(f"Задание {task['taskId']} не было найдено сервисом А")
 
                     else:
                         logger.error("Сервис A не доступен")

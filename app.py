@@ -31,26 +31,7 @@ from postgres.service import (
 )
 from exceptions import ModelValidateError
 from postgres.session import async_session
-import logging
-
-logger = logging.getLogger("uvicorn")
-
-logger.setLevel(logging.INFO)
-
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-
-file_handler = logging.FileHandler('errors.log')
-file_handler.setLevel(logging.ERROR)
-
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-console_handler.setFormatter(formatter)
-file_handler.setFormatter(formatter)
-
-logger.addHandler(console_handler)
-logger.addHandler(file_handler)
-
+from logger import logger
 
 CONSUMER_STREAM_NAME = "completed_tasks"
 CONSUMER_GROUP_NAME = "completed_tasks_handler"

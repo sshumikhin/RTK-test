@@ -9,7 +9,7 @@ from postgres.models import Task
 from postgres.service import get_entity_by_params
 from postgres.session import async_session
 from utils import getenv
-import logging
+from logger import logger
 
 load_dotenv()
 
@@ -18,23 +18,6 @@ PORT = getenv("REDIS_PORT")
 
 CONNECTION_URL = f"redis://{HOST}:{PORT}/0"
 
-logger = logging.getLogger("uvicorn")
-
-logger.setLevel(logging.INFO)
-
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-
-file_handler = logging.FileHandler('redis_errors.log')
-file_handler.setLevel(logging.ERROR)
-
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-console_handler.setFormatter(formatter)
-file_handler.setFormatter(formatter)
-
-logger.addHandler(console_handler)
-logger.addHandler(file_handler)
 
 try:
     redis_client = aioredis.from_url(
@@ -101,7 +84,7 @@ async def read_messages(
                     )
                     task.status = msg_body["status"]
                     await session.commit()
-                    logger.info(f"Задача {task.id} успешно выполнена")
+                    logger.info(f"Задача {task.id} обработана")
                 await redis_client.xack(stream, group, msg_id)
     except Exception as error:
         logger.error(f"Не удалось прочитать сообщения")

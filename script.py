@@ -181,7 +181,7 @@ class TaskManager:
             Имплементирует XACK
         """
         try:
-            await self.redis.xack(CONSUMER_STREAM_NAME, "processing_group", message_id)
+            await self.redis.xack(CONSUMER_STREAM_NAME, CONSUMER_GROUP_NAME, message_id)
         except Exception as e:
             logger.error(f"Не удалось подтвердить получение задания: {e}")
             logger.error(f"message_id: {message_id}")

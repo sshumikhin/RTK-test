@@ -1,4 +1,5 @@
 # Standart
+import asyncio
 from uuid import UUID
 from contextlib import asynccontextmanager
 
@@ -19,8 +20,7 @@ from postgres.models import (
 from redis_client import (
     redis_client,
     send_to_stream, create_consumer_group,
-    read_messages as read_old_messages,
-    read_new_messages
+    read_messages as read_old_messages, read_new_messages,
 )
 
 # First party
@@ -65,21 +65,22 @@ async def lifespan(app: FastAPI):
         stream=CONSUMER_STREAM_NAME,
         group=CONSUMER_GROUP_NAME,
     )
-    logger.info("Чтение старых сообщений")
     await read_old_messages(
         group=CONSUMER_GROUP_NAME,
         consumername=CONSUMER_NAME,
         stream=CONSUMER_STREAM_NAME,
-        stream_viewing_type="0"
+        stream_viewing_type="0",
+        periodic_message="Чтение старых сообщений"
     )
 
-    await read_new_messages(
-        groupname=CONSUMER_GROUP_NAME,
-        consumername=CONSUMER_NAME,
-        stream=CONSUMER_STREAM_NAME,
-        stream_viewing_type=">",
-        periodic_message="Чтение новых сообщений"
+    asyncio.create_task(
+        read_new_messages(
+            group=CONSUMER_GROUP_NAME,
+            consumername=CONSUMER_NAME,
+            stream=CONSUMER_STREAM_NAME
+        )
     )
+
     yield
     await redis_client.aclose()
     logger.info("Остановка сервиса B")

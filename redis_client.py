@@ -1,8 +1,8 @@
+import asyncio
 import json
 import sys
 from uuid import UUID
 import redis.asyncio as aioredis
-from fastapi_utilities import repeat_every
 from dotenv import load_dotenv
 from redis.exceptions import ResponseError
 from postgres.models import Task
@@ -108,4 +108,13 @@ async def read_messages(
         logger.error(error)
 
 
-read_new_messages = repeat_every(seconds=5)(read_messages)
+async def read_new_messages(stream: str, group: str, consumername: str):
+    while True:
+        await read_messages(
+            stream=stream,
+            group=group,
+            consumername=consumername,
+            stream_viewing_type=">",
+            periodic_message="Получение новых сообщений"
+        )
+        await asyncio.sleep(5)

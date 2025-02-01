@@ -17,9 +17,10 @@ from postgres.models import (
 )
 
 from redis_client import (
-    read_from_stream,
     redis_client,
-    send_to_stream, create_consumer_group, read_old_messages
+    send_to_stream, create_consumer_group,
+    read_messages as read_old_messages,
+    read_new_messages
 )
 
 # First party
@@ -33,6 +34,22 @@ from postgres.session import async_session
 import logging
 
 logger = logging.getLogger("uvicorn")
+
+logger.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+file_handler = logging.FileHandler('errors.log')
+file_handler.setLevel(logging.ERROR)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+console_handler.setFormatter(formatter)
+file_handler.setFormatter(formatter)
+
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
 
 
 CONSUMER_STREAM_NAME = "completed_tasks"
@@ -48,16 +65,20 @@ async def lifespan(app: FastAPI):
         stream=CONSUMER_STREAM_NAME,
         group=CONSUMER_GROUP_NAME,
     )
-
+    logger.info("Чтение старых сообщений")
     await read_old_messages(
         group=CONSUMER_GROUP_NAME,
         consumername=CONSUMER_NAME,
-        stream=CONSUMER_STREAM_NAME
+        stream=CONSUMER_STREAM_NAME,
+        stream_viewing_type="0"
     )
-    await read_from_stream(
+
+    await read_new_messages(
         groupname=CONSUMER_GROUP_NAME,
         consumername=CONSUMER_NAME,
-        stream=CONSUMER_STREAM_NAME
+        stream=CONSUMER_STREAM_NAME,
+        stream_viewing_type=">",
+        periodic_message="Чтение новых сообщений"
     )
     yield
     await redis_client.aclose()
@@ -95,6 +116,7 @@ async def http_exception_handler(_: Request, exc):
 
 @app.exception_handler(Exception)
 async def http_exception_handler(_: Request, exc):
+    logger.error(exc)
     return JSONResponse(
         status_code=500,
         content={
@@ -136,6 +158,13 @@ async def configure_device_by_id(
     id: str = Path(..., title="ID устройства", regex="^[a-zA-Z0-9]{6,}$"),
     session: AsyncSession = Depends(async_session)
 ):
+    """
+        Конфигурация устройства по ID
+
+        Создаёт конфигурацию устройства и задачу по ней
+
+        После отправляет задачу в Redis stream
+    """
     try:
         configuration = await create_configuration(
             session=session,
@@ -240,6 +269,11 @@ async def get_task_status(
         ),
         session: AsyncSession = Depends(async_session)
 ):
+    """
+        Эндпоинт проверяющий статус задачи по ID устройства и ID задачи
+
+        Проверяет базу данных и выдаёт соотвествующий ответ в зависимости от статуса
+    """
 
     configuration_ids = await get_entity_by_params(
         model=Configuration.id,
@@ -263,7 +297,7 @@ async def get_task_status(
                     Task.id == task],
     )
 
-    if task is None:
+    if task is None or task.status == "not_found":
         return JSONResponse(
             status_code=404,
             content={
@@ -291,8 +325,6 @@ async def get_task_status(
             content={
                 "code": 500,
                 "message": "Internal provisioning exception"})
-
-
 
 
 @app.get(path="/health", include_in_schema=False)

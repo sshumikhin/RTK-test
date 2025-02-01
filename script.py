@@ -228,7 +228,6 @@ class TaskManager:
                         logger.error(f"task_id: {task['taskId']}")
                         # Не подтвердили обработку задачи, а значит, она остаётся в брокере
                         continue
-                    await self.confirm_receipt(message_id=message_id)
             else:
                 logger.info(f"Нет новых заданий в канале {CONSUMER_STREAM_NAME}")
 

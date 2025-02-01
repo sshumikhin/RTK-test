@@ -58,7 +58,7 @@ services:
     container_name: script
     command: python3 script.py
     volumes:
-      - migrations:/code/alembic/migrations/versions
+      - script_logs:/code/errors.log
     expose:
       - 8000
     depends_on:
@@ -103,3 +103,4 @@ services:
 volumes:
   migrations:
   postgres_data:
+  script_logs:
